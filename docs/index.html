@@ -5,49 +5,978 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>日本株ブレイクアウトスクリーナー</title>
   <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #252836;
+      --border: #2d3149;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #6366f1;
+      --high: #ef4444;
+      --mid: #f97316;
+      --low: #6b7280;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: #0f1117;
-      color: #e2e8f0;
-      font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', 'Yu Gothic', sans-serif;
       min-height: 100vh;
-      margin: 0;
+      padding: 0 0 60px;
     }
-    .box {
-      text-align: center;
-      padding: 40px;
+
+    /* ヘッダー */
+    .header {
+      background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 32px 24px 28px;
     }
-    h1 {
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .header h1 {
       font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
       background: linear-gradient(90deg, #818cf8, #c084fc);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      margin-bottom: 16px;
     }
-    p { color: #94a3b8; font-size: 1rem; line-height: 1.8; }
-    .badge {
-      display: inline-block;
-      margin-top: 24px;
-      background: #1e1b4b;
-      border: 1px solid #3730a3;
-      border-radius: 8px;
-      padding: 10px 20px;
+    .header-sub {
+      color: var(--text-muted);
       font-size: 0.85rem;
+      margin-top: 6px;
+    }
+    .header-sub strong { color: #a5b4fc; }
+
+    /* サマリーカード */
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 28px 0;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .card-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .card-value {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-top: 4px;
+    }
+    .card-value.red { color: #f87171; }
+    .card-value.orange { color: #fb923c; }
+    .card-value.purple { color: #a78bfa; }
+    .card-value.blue { color: #60a5fa; }
+
+    /* メインテーブル */
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 32px 0 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    thead tr {
+      background: var(--surface2);
+    }
+    thead th {
+      padding: 12px 14px;
+      text-align: left;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    tbody tr {
+      border-top: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    tbody tr:hover { background: var(--surface2); }
+    td {
+      padding: 13px 14px;
+      vertical-align: middle;
+    }
+    .rank { color: var(--text-muted); font-size: 0.8rem; font-weight: 700; width: 40px; }
+    .ticker-code { font-weight: 700; font-size: 0.9rem; color: #a5b4fc; }
+    .ticker-name { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+    .mono { font-family: 'SF Mono', 'Fira Code', monospace; }
+
+    /* 確率バー */
+    .prob-bar-wrap {
+      background: var(--surface2);
+      border-radius: 4px;
+      height: 6px;
+      width: 100px;
+      overflow: hidden;
+    }
+    .prob-bar {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+    .prob-label { font-size: 0.95rem; margin-top: 4px; }
+
+    /* バッジ */
+    .alert-badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: white;
+      letter-spacing: 0.5px;
+    }
+
+    /* シグナルタグ */
+    .signals { max-width: 240px; }
+    .signal-tag {
+      display: inline-block;
+      background: rgba(99,102,241,0.15);
+      border: 1px solid rgba(99,102,241,0.3);
       color: #a5b4fc;
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin: 2px 2px 2px 0;
+      white-space: nowrap;
+    }
+
+    /* 免責 */
+    .disclaimer {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-top: 32px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+    .disclaimer strong { color: #f87171; }
+
+    /* 凡例 */
+    .legend {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin: 0 0 24px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* 折りたたみ */
+    details { margin-top: 32px; }
+    summary {
+      cursor: pointer;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::before {
+      content: '▶';
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      transition: transform 0.2s;
+    }
+    details[open] summary::before { transform: rotate(90deg); }
+
+    /* フッター */
+    .footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-top: 48px;
+    }
+
+    @media (max-width: 768px) {
+      .header h1 { font-size: 1.3rem; }
+      .cards { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
 <body>
-  <div class="box">
+
+<!-- ヘッダー -->
+<div class="header">
+  <div class="header-inner">
     <h1>🚀 日本株 ブレイクアウトスクリーナー</h1>
-    <p>
-      GitHub Actionsが毎日 06:00 JST に自動実行します。<br>
-      初回実行後にスクリーニング結果が表示されます。<br>
-      右上の「Actions」タブから手動実行もできます。
-    </p>
-    <div class="badge">⏳ 初回データ生成待ち — Actions タブから手動実行してください</div>
+    <div class="header-sub">
+      機械学習（LightGBM）× テクニカル分析で「次のキオクシア」候補を毎日自動抽出 |
+      最終更新: <strong>2026年06月22日 13:30 JST</strong>
+    </div>
   </div>
+</div>
+
+<div class="container">
+
+  <!-- サマリーカード -->
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">スクリーニング対象</div>
+      <div class="card-value blue">38<span style="font-size:1rem;color:var(--text-muted);"> 銘柄</span></div>
+    </div>
+    <div class="card">
+      <div class="card-label">HIGH ALERT (≥70%)</div>
+      <div class="card-value red">0<span style="font-size:1rem;color:var(--text-muted);"> 銘柄</span></div>
+    </div>
+    <div class="card">
+      <div class="card-label">WATCH (50–70%)</div>
+      <div class="card-value orange">0<span style="font-size:1rem;color:var(--text-muted);"> 銘柄</span></div>
+    </div>
+    <div class="card">
+      <div class="card-label">平均ブレイクアウト確率</div>
+      <div class="card-value purple">8.9%</div>
+    </div>
+  </div>
+
+  <!-- 凡例 -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#ef4444;"></div> HIGH（≥70%）: 要注目
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#f97316;"></div> WATCH（50–70%）: 監視継続
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#6b7280;"></div> —（<50%）: 様子見
+    </div>
+  </div>
+
+  <!-- メインテーブル -->
+  <div class="section-title">📊 Top 20 — ブレイクアウト候補銘柄</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>銘柄</th>
+          <th>急騰確率</th>
+          <th>Alert</th>
+          <th>株価</th>
+          <th>RSI</th>
+          <th>出来高比</th>
+          <th>BB幅比</th>
+          <th>検出シグナル</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+        <tr>
+          <td class="rank">#1</td>
+          <td>
+            <div class="ticker-code">6954.T</div>
+            <div class="ticker-name">ファナック</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:24.0%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">24.0%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥7,473</td>
+          <td class="mono">51.2</td>
+          <td class="mono">0.95x</td>
+          <td class="mono">1.07</td>
+          <td class="signals"><span class="signal-tag">✅ RSI適正(51)</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#2</td>
+          <td>
+            <div class="ticker-code">4307.T</div>
+            <div class="ticker-name">野村総研</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:21.3%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">21.3%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥4,358</td>
+          <td class="mono">41.1</td>
+          <td class="mono">1.39x</td>
+          <td class="mono">1.00</td>
+          <td class="signals"><span class="signal-tag">💥 スクイーズ解放</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#3</td>
+          <td>
+            <div class="ticker-code">2802.T</div>
+            <div class="ticker-name">味の素</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:19.0%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">19.0%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥5,790</td>
+          <td class="mono">67.4</td>
+          <td class="mono">1.67x</td>
+          <td class="mono">1.32</td>
+          <td class="signals"><span class="signal-tag">—</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#4</td>
+          <td>
+            <div class="ticker-code">7974.T</div>
+            <div class="ticker-name">任天堂</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:17.2%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">17.2%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥7,076</td>
+          <td class="mono">42.0</td>
+          <td class="mono">0.75x</td>
+          <td class="mono">0.97</td>
+          <td class="signals"><span class="signal-tag">—</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#5</td>
+          <td>
+            <div class="ticker-code">7011.T</div>
+            <div class="ticker-name">三菱重工業</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:15.7%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">15.7%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥3,917</td>
+          <td class="mono">51.6</td>
+          <td class="mono">0.95x</td>
+          <td class="mono">0.83</td>
+          <td class="signals"><span class="signal-tag">✅ RSI適正(52)</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#6</td>
+          <td>
+            <div class="ticker-code">9984.T</div>
+            <div class="ticker-name">ソフトバンクG</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:15.5%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">15.5%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥7,111</td>
+          <td class="mono">54.2</td>
+          <td class="mono">1.01x</td>
+          <td class="mono">0.67</td>
+          <td class="signals"><span class="signal-tag">⚡ BBスクイーズ中</span><span class="signal-tag">✅ RSI適正(54)</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#7</td>
+          <td>
+            <div class="ticker-code">6098.T</div>
+            <div class="ticker-name">リクルートHD</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:15.5%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">15.5%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥10,865</td>
+          <td class="mono">61.1</td>
+          <td class="mono">0.83x</td>
+          <td class="mono">0.60</td>
+          <td class="signals"><span class="signal-tag">⚡ BBスクイーズ中</span><span class="signal-tag">✅ RSI適正(61)</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#8</td>
+          <td>
+            <div class="ticker-code">6503.T</div>
+            <div class="ticker-name">三菱電機</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:14.3%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">14.3%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥6,051</td>
+          <td class="mono">52.2</td>
+          <td class="mono">0.90x</td>
+          <td class="mono">1.05</td>
+          <td class="signals"><span class="signal-tag">✅ RSI適正(52)</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#9</td>
+          <td>
+            <div class="ticker-code">6645.T</div>
+            <div class="ticker-name">オムロン</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:14.3%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">14.3%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥6,134</td>
+          <td class="mono">59.5</td>
+          <td class="mono">1.46x</td>
+          <td class="mono">0.93</td>
+          <td class="signals"><span class="signal-tag">✅ RSI適正(59)</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#10</td>
+          <td>
+            <div class="ticker-code">4063.T</div>
+            <div class="ticker-name">信越化学工業</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:13.3%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">13.3%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥7,310</td>
+          <td class="mono">51.5</td>
+          <td class="mono">1.03x</td>
+          <td class="mono">0.96</td>
+          <td class="signals"><span class="signal-tag">✅ RSI適正(52)</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#11</td>
+          <td>
+            <div class="ticker-code">6588.T</div>
+            <div class="ticker-name">6588.T</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:13.1%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">13.1%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥3,025</td>
+          <td class="mono">45.9</td>
+          <td class="mono">0.82x</td>
+          <td class="mono">0.95</td>
+          <td class="signals"><span class="signal-tag">✅ RSI適正(46)</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#12</td>
+          <td>
+            <div class="ticker-code">6702.T</div>
+            <div class="ticker-name">富士通</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:12.1%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">12.1%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥3,211</td>
+          <td class="mono">41.5</td>
+          <td class="mono">1.39x</td>
+          <td class="mono">1.00</td>
+          <td class="signals"><span class="signal-tag">—</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#13</td>
+          <td>
+            <div class="ticker-code">8411.T</div>
+            <div class="ticker-name">みずほFG</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:11.7%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">11.7%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥7,884</td>
+          <td class="mono">59.2</td>
+          <td class="mono">1.28x</td>
+          <td class="mono">1.02</td>
+          <td class="signals"><span class="signal-tag">✅ RSI適正(59)</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#14</td>
+          <td>
+            <div class="ticker-code">6758.T</div>
+            <div class="ticker-name">ソニーグループ</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:11.5%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">11.5%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥3,140</td>
+          <td class="mono">33.5</td>
+          <td class="mono">1.48x</td>
+          <td class="mono">1.40</td>
+          <td class="signals"><span class="signal-tag">📉 RSI売られすぎ(34)</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#15</td>
+          <td>
+            <div class="ticker-code">6501.T</div>
+            <div class="ticker-name">日立製作所</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:11.5%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">11.5%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥4,764</td>
+          <td class="mono">44.0</td>
+          <td class="mono">1.32x</td>
+          <td class="mono">1.14</td>
+          <td class="signals"><span class="signal-tag">—</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#16</td>
+          <td>
+            <div class="ticker-code">6770.T</div>
+            <div class="ticker-name">アルプスアルパイン</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:10.9%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">10.9%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥2,176</td>
+          <td class="mono">53.4</td>
+          <td class="mono">1.08x</td>
+          <td class="mono">1.10</td>
+          <td class="signals"><span class="signal-tag">✅ RSI適正(53)</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#17</td>
+          <td>
+            <div class="ticker-code">6963.T</div>
+            <div class="ticker-name">ローム</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:10.2%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">10.2%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥5,509</td>
+          <td class="mono">62.0</td>
+          <td class="mono">1.30x</td>
+          <td class="mono">0.57</td>
+          <td class="signals"><span class="signal-tag">⚡ BBスクイーズ中</span><span class="signal-tag">✅ RSI適正(62)</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#18</td>
+          <td>
+            <div class="ticker-code">6861.T</div>
+            <div class="ticker-name">キーエンス</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:9.2%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">9.2%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥77,700</td>
+          <td class="mono">55.9</td>
+          <td class="mono">1.47x</td>
+          <td class="mono">1.03</td>
+          <td class="signals"><span class="signal-tag">✅ RSI適正(56)</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#19</td>
+          <td>
+            <div class="ticker-code">4502.T</div>
+            <div class="ticker-name">武田薬品工業</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:8.8%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">8.8%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥4,934</td>
+          <td class="mono">42.1</td>
+          <td class="mono">0.90x</td>
+          <td class="mono">0.80</td>
+          <td class="signals"><span class="signal-tag">—</span></td>
+        </tr>
+        <tr>
+          <td class="rank">#20</td>
+          <td>
+            <div class="ticker-code">8306.T</div>
+            <div class="ticker-name">三菱UFJ FG</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:8.7%; background:#6b7280;"></div>
+            </div>
+            <div class="prob-label" style="color:#6b7280; font-weight:700;">8.7%</div>
+          </td>
+          <td><span class="alert-badge" style="background:#6b7280;">—</span></td>
+          <td class="mono">¥3,278</td>
+          <td class="mono">62.7</td>
+          <td class="mono">1.16x</td>
+          <td class="mono">1.18</td>
+          <td class="signals"><span class="signal-tag">💥 スクイーズ解放</span><span class="signal-tag">✅ RSI適正(63)</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 全銘柄スコア（折りたたみ） -->
+  <details>
+    <summary>全銘柄スコア一覧 (38銘柄)</summary>
+    <div class="table-wrap" style="margin-top:16px;">
+      <table>
+        <thead>
+          <tr>
+            <th>ティッカー</th>
+            <th>企業名</th>
+            <th>急騰確率</th>
+            <th>株価</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr>
+          <td>6954.T</td>
+          <td>ファナック</td>
+          <td style="color:#6b7280; font-weight:600;">24.0%</td>
+          <td class="mono">¥7,473</td>
+        </tr>
+        <tr>
+          <td>4307.T</td>
+          <td>野村総研</td>
+          <td style="color:#6b7280; font-weight:600;">21.3%</td>
+          <td class="mono">¥4,358</td>
+        </tr>
+        <tr>
+          <td>2802.T</td>
+          <td>味の素</td>
+          <td style="color:#6b7280; font-weight:600;">19.0%</td>
+          <td class="mono">¥5,790</td>
+        </tr>
+        <tr>
+          <td>7974.T</td>
+          <td>任天堂</td>
+          <td style="color:#6b7280; font-weight:600;">17.2%</td>
+          <td class="mono">¥7,076</td>
+        </tr>
+        <tr>
+          <td>7011.T</td>
+          <td>三菱重工業</td>
+          <td style="color:#6b7280; font-weight:600;">15.7%</td>
+          <td class="mono">¥3,917</td>
+        </tr>
+        <tr>
+          <td>9984.T</td>
+          <td>ソフトバンクG</td>
+          <td style="color:#6b7280; font-weight:600;">15.5%</td>
+          <td class="mono">¥7,111</td>
+        </tr>
+        <tr>
+          <td>6098.T</td>
+          <td>リクルートHD</td>
+          <td style="color:#6b7280; font-weight:600;">15.5%</td>
+          <td class="mono">¥10,865</td>
+        </tr>
+        <tr>
+          <td>6503.T</td>
+          <td>三菱電機</td>
+          <td style="color:#6b7280; font-weight:600;">14.3%</td>
+          <td class="mono">¥6,051</td>
+        </tr>
+        <tr>
+          <td>6645.T</td>
+          <td>オムロン</td>
+          <td style="color:#6b7280; font-weight:600;">14.3%</td>
+          <td class="mono">¥6,134</td>
+        </tr>
+        <tr>
+          <td>4063.T</td>
+          <td>信越化学工業</td>
+          <td style="color:#6b7280; font-weight:600;">13.3%</td>
+          <td class="mono">¥7,310</td>
+        </tr>
+        <tr>
+          <td>6588.T</td>
+          <td>6588.T</td>
+          <td style="color:#6b7280; font-weight:600;">13.1%</td>
+          <td class="mono">¥3,025</td>
+        </tr>
+        <tr>
+          <td>6702.T</td>
+          <td>富士通</td>
+          <td style="color:#6b7280; font-weight:600;">12.1%</td>
+          <td class="mono">¥3,211</td>
+        </tr>
+        <tr>
+          <td>8411.T</td>
+          <td>みずほFG</td>
+          <td style="color:#6b7280; font-weight:600;">11.7%</td>
+          <td class="mono">¥7,884</td>
+        </tr>
+        <tr>
+          <td>6758.T</td>
+          <td>ソニーグループ</td>
+          <td style="color:#6b7280; font-weight:600;">11.5%</td>
+          <td class="mono">¥3,140</td>
+        </tr>
+        <tr>
+          <td>6501.T</td>
+          <td>日立製作所</td>
+          <td style="color:#6b7280; font-weight:600;">11.5%</td>
+          <td class="mono">¥4,764</td>
+        </tr>
+        <tr>
+          <td>6770.T</td>
+          <td>アルプスアルパイン</td>
+          <td style="color:#6b7280; font-weight:600;">10.9%</td>
+          <td class="mono">¥2,176</td>
+        </tr>
+        <tr>
+          <td>6963.T</td>
+          <td>ローム</td>
+          <td style="color:#6b7280; font-weight:600;">10.2%</td>
+          <td class="mono">¥5,509</td>
+        </tr>
+        <tr>
+          <td>6861.T</td>
+          <td>キーエンス</td>
+          <td style="color:#6b7280; font-weight:600;">9.2%</td>
+          <td class="mono">¥77,700</td>
+        </tr>
+        <tr>
+          <td>4502.T</td>
+          <td>武田薬品工業</td>
+          <td style="color:#6b7280; font-weight:600;">8.8%</td>
+          <td class="mono">¥4,934</td>
+        </tr>
+        <tr>
+          <td>8306.T</td>
+          <td>三菱UFJ FG</td>
+          <td style="color:#6b7280; font-weight:600;">8.7%</td>
+          <td class="mono">¥3,278</td>
+        </tr>
+        <tr>
+          <td>4543.T</td>
+          <td>テルモ</td>
+          <td style="color:#6b7280; font-weight:600;">8.0%</td>
+          <td class="mono">¥2,224</td>
+        </tr>
+        <tr>
+          <td>7203.T</td>
+          <td>トヨタ自動車</td>
+          <td style="color:#6b7280; font-weight:600;">6.3%</td>
+          <td class="mono">¥2,776</td>
+        </tr>
+        <tr>
+          <td>4523.T</td>
+          <td>エーザイ</td>
+          <td style="color:#6b7280; font-weight:600;">5.2%</td>
+          <td class="mono">¥3,902</td>
+        </tr>
+        <tr>
+          <td>9022.T</td>
+          <td>JR東海</td>
+          <td style="color:#6b7280; font-weight:600;">5.0%</td>
+          <td class="mono">¥3,256</td>
+        </tr>
+        <tr>
+          <td>4519.T</td>
+          <td>中外製薬</td>
+          <td style="color:#6b7280; font-weight:600;">4.4%</td>
+          <td class="mono">¥7,550</td>
+        </tr>
+        <tr>
+          <td>5108.T</td>
+          <td>ブリヂストン</td>
+          <td style="color:#6b7280; font-weight:600;">4.0%</td>
+          <td class="mono">¥3,426</td>
+        </tr>
+        <tr>
+          <td>8058.T</td>
+          <td>三菱商事</td>
+          <td style="color:#6b7280; font-weight:600;">3.9%</td>
+          <td class="mono">¥4,540</td>
+        </tr>
+        <tr>
+          <td>7741.T</td>
+          <td>HOYA</td>
+          <td style="color:#6b7280; font-weight:600;">3.1%</td>
+          <td class="mono">¥27,245</td>
+        </tr>
+        <tr>
+          <td>9433.T</td>
+          <td>KDDI</td>
+          <td style="color:#6b7280; font-weight:600;">3.1%</td>
+          <td class="mono">¥2,722</td>
+        </tr>
+        <tr>
+          <td>3382.T</td>
+          <td>セブン&アイHD</td>
+          <td style="color:#6b7280; font-weight:600;">3.0%</td>
+          <td class="mono">¥1,934</td>
+        </tr>
+        <tr>
+          <td>8031.T</td>
+          <td>三井物産</td>
+          <td style="color:#6b7280; font-weight:600;">2.8%</td>
+          <td class="mono">¥4,716</td>
+        </tr>
+        <tr>
+          <td>6367.T</td>
+          <td>ダイキン工業</td>
+          <td style="color:#6b7280; font-weight:600;">2.4%</td>
+          <td class="mono">¥23,890</td>
+        </tr>
+        <tr>
+          <td>8035.T</td>
+          <td>東京エレクトロン</td>
+          <td style="color:#6b7280; font-weight:600;">2.4%</td>
+          <td class="mono">¥75,360</td>
+        </tr>
+        <tr>
+          <td>7735.T</td>
+          <td>SCREEN HD</td>
+          <td style="color:#6b7280; font-weight:600;">2.0%</td>
+          <td class="mono">¥16,745</td>
+        </tr>
+        <tr>
+          <td>2914.T</td>
+          <td>JT</td>
+          <td style="color:#6b7280; font-weight:600;">1.7%</td>
+          <td class="mono">¥6,075</td>
+        </tr>
+        <tr>
+          <td>6146.T</td>
+          <td>ディスコ</td>
+          <td style="color:#6b7280; font-weight:600;">1.5%</td>
+          <td class="mono">¥84,900</td>
+        </tr>
+        <tr>
+          <td>6920.T</td>
+          <td>レーザーテック</td>
+          <td style="color:#6b7280; font-weight:600;">1.2%</td>
+          <td class="mono">¥55,100</td>
+        </tr>
+        <tr>
+          <td>9432.T</td>
+          <td>NTT</td>
+          <td style="color:#6b7280; font-weight:600;">0.7%</td>
+          <td class="mono">¥144</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <!-- モデル仕様 -->
+  <details>
+    <summary>モデル仕様・特徴量について</summary>
+    <div style="margin-top:20px; display:grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap:16px;">
+      <div class="card">
+        <div class="card-label" style="margin-bottom:10px;">予測ターゲット</div>
+        <p style="font-size:0.85rem; color:var(--text-muted); line-height:1.7;">
+          「20営業日（約1ヶ月）後に株価が<strong style="color:var(--text);">15%以上上昇</strong>するか」を
+          二値分類（1=上昇 / 0=その他）で予測。
+        </p>
+      </div>
+      <div class="card">
+        <div class="card-label" style="margin-bottom:10px;">主要特徴量</div>
+        <ul style="font-size:0.82rem; color:var(--text-muted); line-height:2; list-style:none;">
+          <li>📏 ボリンジャーバンド スクイーズ比率</li>
+          <li>📈 RSI（14日）</li>
+          <li>📊 MACD ゴールデンクロス</li>
+          <li>🔥 出来高スパイク（20日平均比）</li>
+          <li>🎯 複合ブレイクアウトスコア</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-label" style="margin-bottom:10px;">モデル情報</div>
+        <ul style="font-size:0.82rem; color:var(--text-muted); line-height:2; list-style:none;">
+          <li>🤖 LightGBM (勾配ブースティング)</li>
+          <li>📅 学習データ: 2020〜直近</li>
+          <li>🔄 評価: TimeSeriesSplit (5-fold)</li>
+          <li>⏰ 毎日 06:00 JST 自動更新</li>
+        </ul>
+      </div>
+    </div>
+  </details>
+
+  <!-- 免責事項 -->
+  <div class="disclaimer">
+    <strong>⚠️ 免責事項:</strong>
+    本ツールは機械学習を用いた統計的分析であり、投資勧誘を目的としたものではありません。
+    表示されるスコアは過去データのパターンに基づく参考情報であり、将来の株価上昇を保証するものではありません。
+    投資に関する判断は、ご自身の責任において行ってください。株式投資には元本割れのリスクがあります。
+  </div>
+
+  <div class="footer">
+    Powered by Python × LightGBM × yfinance | Auto-updated daily via GitHub Actions
+  </div>
+
+</div>
 </body>
 </html>
