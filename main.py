@@ -108,6 +108,46 @@ CONFIG = {
 
     # グラフを表示・保存するか
     "plot": True,
+
+    # ========== バリュー戦略（格安・割安 × 1週間10%）==========
+    "value_strategy": {
+        "enabled": True,
+        "label_horizon": 5,        # 5営業日後（約1週間）
+        "label_threshold": 0.10,   # 10%以上上昇
+        "model_save_path": "./models/value_model.pkl",
+        "scaler_save_path": "./models/value_scaler.pkl",
+        "cv_n_splits": 5,
+        "lgb_params": {
+            "objective": "binary",
+            "metric": "binary_logloss",
+            "n_estimators": 400,
+            "learning_rate": 0.05,
+            "num_leaves": 31,
+            "min_child_samples": 15,
+            "subsample": 0.8,
+            "colsample_bytree": 0.8,
+            "reg_alpha": 0.1,
+            "reg_lambda": 0.1,
+            "random_state": 42,
+            "verbosity": -1,
+            "n_jobs": -1,
+            "scale_pos_weight": 3,
+        },
+        "min_rows": 130,
+        "week_high_low_window": 260,
+        "rsi_window": 14,
+        "stoch_window": 14,
+        "stoch_smooth": 3,
+        "williams_window": 14,
+        "mfi_window": 14,
+        "obv_ma_window": 10,
+        "bb_window": 20,
+        "bb_std": 2.0,
+        "ma_short": 5,
+        "ma_mid": 25,
+        "ma_long": 75,
+        "volume_window": 20,
+    },
 }
 
 
@@ -200,9 +240,19 @@ def run_train(config: dict) -> None:
         plot=config["plot"],
     )
 
-    logger.info("[Train] Complete!")
+    logger.info("[Train] Breakout model complete!")
     logger.info(f"  Mean Precision: {cv_results['mean_metrics']['precision']:.3f}")
     logger.info(f"  Mean ROC-AUC:   {cv_results['mean_metrics']['roc_auc']:.3f}")
+
+    # --- バリュー戦略モデルの学習 ---
+    if config.get("value_strategy", {}).get("enabled", False):
+        logger.info("[Train] Training value strategy model (5d/10%)...")
+        from strategy_value import build_value_dataset, train_value_model
+        value_params = config["value_strategy"]
+        value_dataset = build_value_dataset(price_data, params=value_params)
+        if not value_dataset.empty:
+            train_value_model(value_dataset, params=value_params, plot=config["plot"])
+            logger.info("[Train] Value model complete!")
 
 
 # ------------------------------------------------------------------ #
@@ -246,7 +296,26 @@ def run_screen(config: dict) -> None:
             print(f"\n  2-Stage Filter Applied: {len(filtered)} tickers remain")
             print(filtered[["breakout_probability", "rsi", "volume_ratio"]].head(10).to_string())
 
-    logger.info("[Screen] Complete!")
+    logger.info("[Screen] Breakout screener complete!")
+
+    # --- バリュー戦略スクリーニング ---
+    if config.get("value_strategy", {}).get("enabled", False):
+        from data_fetcher import get_latest_data
+        from strategy_value import run_value_screener
+        value_params = config["value_strategy"]
+        logger.info("[Screen] Running value screener (5d/10%)...")
+        latest_data = get_latest_data(tickers, lookback_days=config["screen_lookback_days"])
+        run_value_screener(
+            price_data=latest_data,
+            model_path=value_params["model_save_path"],
+            scaler_path=value_params["scaler_save_path"],
+            params=value_params,
+            top_n=config["screen_top_n"],
+            output_dir=config["output_dir"],
+        )
+        logger.info("[Screen] Value screener complete!")
+
+    logger.info("[Screen] All done!")
 
 
 # ------------------------------------------------------------------ #

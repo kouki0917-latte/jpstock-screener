@@ -60,16 +60,13 @@ jobs:
 
       # ── 5. HTMLレポートの生成 ──
       - name: Generate HTML report
-        run: python report_generator.py --input results/screening_result_latest.csv --output docs/index.html
+        run: python report_generator.py --input results/screening_result_latest.csv --output docs/index.html --value-input results/value_screening_latest.csv
 
       # ── 6. 結果をリポジトリにコミット & プッシュ ──
-      # docs/index.html と results/screening_result_latest.csv を保存
       - name: Commit and push results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/index.html results/
-          # 変更がある場合のみコミット
-          git diff --cached --quiet || git commit -m \
-            "chore: update screening results [$(date +'%Y-%m-%d %H:%M JST')]"
+          git diff --cached --quiet || git commit -m "chore: update screening results [$(date +'%Y-%m-%d %H:%M JST')]"
           git push

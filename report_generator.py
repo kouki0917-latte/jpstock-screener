@@ -14,6 +14,7 @@ import json
 import math
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
@@ -555,9 +556,152 @@ def build_html(df: pd.DataFrame, generated_at: str) -> str:
 #  エントリーポイント
 # ------------------------------------------------------------------ #
 
+def build_value_section(df_value: pd.DataFrame) -> str:
+    """バリュー戦略のHTMLセクションを生成する。"""
+    top20 = df_value.head(20)
+    high_count = (df_value["rebound_probability"] >= 0.65).sum()
+    watch_count = ((df_value["rebound_probability"] >= 0.45) &
+                   (df_value["rebound_probability"] < 0.65)).sum()
+
+    rows_html = ""
+    for rank, (idx, row) in enumerate(top20.iterrows(), 1):
+        ticker = idx
+        name = TICKER_NAMES.get(ticker, ticker)
+        prob = row["rebound_probability"]
+        color = "#10b981" if prob >= 0.65 else "#f59e0b" if prob >= 0.45 else "#6b7280"
+        level = "BUY" if prob >= 0.65 else "WATCH" if prob >= 0.45 else "—"
+
+        close = f"¥{row['latest_close']:,.0f}" if pd.notna(row.get("latest_close")) else "—"
+        rsi = f"{row['rsi']:.1f}" if pd.notna(row.get("rsi")) else "—"
+        stoch = f"{row['stoch_k']:.1f}" if pd.notna(row.get("stoch_k")) else "—"
+        mfi = f"{row['mfi']:.1f}" if pd.notna(row.get("mfi")) else "—"
+        pct52 = f"{row['pct_in_52w_range']:.1%}" if pd.notna(row.get("pct_in_52w_range")) else "—"
+        oversold = int(row["oversold_composite"]) if pd.notna(row.get("oversold_composite")) else 0
+        reversal = int(row["reversal_composite"]) if pd.notna(row.get("reversal_composite")) else 0
+
+        # 売られすぎスコアをドットで可視化
+        oversold_dots = "●" * oversold + "○" * (4 - oversold)
+        reversal_dots = "●" * reversal + "○" * (4 - reversal)
+
+        bar_width = min(prob * 100, 100)
+        rows_html += f"""
+        <tr>
+          <td class="rank">#{rank}</td>
+          <td>
+            <div class="ticker-code">{ticker}</div>
+            <div class="ticker-name">{name}</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar" style="width:{bar_width:.1f}%; background:{color};"></div>
+            </div>
+            <div class="prob-label" style="color:{color}; font-weight:700;">{prob:.1%}</div>
+          </td>
+          <td><span class="alert-badge" style="background:{color};">{level}</span></td>
+          <td class="mono">{close}</td>
+          <td class="mono" style="color:#f87171;">{rsi}</td>
+          <td class="mono">{stoch}</td>
+          <td class="mono">{mfi}</td>
+          <td class="mono">{pct52}</td>
+          <td class="mono" style="color:#f87171;">{oversold_dots}</td>
+          <td class="mono" style="color:#34d399;">{reversal_dots}</td>
+        </tr>"""
+
+    return f"""
+  <!-- バリュー戦略セクション -->
+  <div style="margin-top:48px;">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+      <h2 style="font-size:1.4rem; font-weight:800; color:#e2e8f0;">
+        💰 格安・割安リバウンド戦略
+      </h2>
+      <span style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4);
+                   color:#34d399; font-size:0.75rem; padding:3px 10px; border-radius:999px; font-weight:700;">
+        5営業日 / +10% ターゲット
+      </span>
+    </div>
+    <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:20px; line-height:1.7;">
+      売られすぎゾーンに叩き込まれた割安株が底値から反転するタイミングを捉える。
+      +10%を繰り返し積み上げる複利戦略。
+      RSI・Stochastics・Williams%R・MFIの4指標が同時に売られすぎを示す銘柄を優先表示。
+    </p>
+
+    <!-- サマリー -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:24px;">
+      <div class="card">
+        <div class="card-label">BUY候補 (≥65%)</div>
+        <div class="card-value" style="color:#34d399;">{high_count} <span style="font-size:1rem;color:#64748b;">銘柄</span></div>
+      </div>
+      <div class="card">
+        <div class="card-label">WATCH (45–65%)</div>
+        <div class="card-value" style="color:#fbbf24;">{watch_count} <span style="font-size:1rem;color:#64748b;">銘柄</span></div>
+      </div>
+      <div class="card">
+        <div class="card-label">対象銘柄数</div>
+        <div class="card-value" style="color:#60a5fa;">{len(df_value)} <span style="font-size:1rem;color:#64748b;">銘柄</span></div>
+      </div>
+    </div>
+
+    <!-- 凡例 -->
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#10b981;"></div> BUY（≥65%）</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b;"></div> WATCH（45–65%）</div>
+      <div class="legend-item">売られすぎスコア ●=検知済み ○=未検知</div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th><th>銘柄</th><th>反転確率</th><th>判定</th>
+            <th>株価</th><th>RSI</th><th>Stoch%K</th><th>MFI</th>
+            <th>52週位置</th><th>売られすぎ(0-4)</th><th>反転シグナル(0-4)</th>
+          </tr>
+        </thead>
+        <tbody>{rows_html}</tbody>
+      </table>
+    </div>
+
+    <!-- 戦略解説 -->
+    <details style="margin-top:20px;">
+      <summary>戦略の詳細・エントリー条件</summary>
+      <div style="margin-top:20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px;">
+        <div class="card">
+          <div class="card-label" style="margin-bottom:8px;">エントリー条件（参考）</div>
+          <ul style="font-size:0.82rem; color:#94a3b8; line-height:2; list-style:none;">
+            <li>📉 RSI &lt; 35（売られすぎゾーン）</li>
+            <li>📊 Stochastics &lt; 25 → 上向き転換</li>
+            <li>💧 MFI &lt; 30（資金流出から流入へ）</li>
+            <li>📦 52週レンジ下位30%以内</li>
+            <li>🔥 ML反転確率 ≥ 65%</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-label" style="margin-bottom:8px;">リスク管理（推奨）</div>
+          <ul style="font-size:0.82rem; color:#94a3b8; line-height:2; list-style:none;">
+            <li>🛑 損切り: エントリー比 -5%</li>
+            <li>🎯 利確: +10%到達で全売り</li>
+            <li>⏱️ 保有期間: 最大5営業日</li>
+            <li>💼 1銘柄集中投資は避ける</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-label" style="margin-bottom:8px;">複利シミュレーション</div>
+          <ul style="font-size:0.82rem; color:#94a3b8; line-height:2; list-style:none;">
+            <li>月2回 +10% → 年間 +85%</li>
+            <li>月3回 +10% → 年間 +185%</li>
+            <li>※ 手数料・税金を考慮すること</li>
+            <li>※ 実績を保証するものではありません</li>
+          </ul>
+        </div>
+      </div>
+    </details>
+  </div>"""
+
+
 def generate_report(
     input_csv: str = "results/screening_result_latest.csv",
     output_html: str = "docs/index.html",
+    value_csv: Optional[str] = "results/value_screening_latest.csv",
 ) -> None:
     """CSVからHTMLレポートを生成して保存する。"""
     input_path = Path(input_csv)
@@ -570,6 +714,15 @@ def generate_report(
     generated_at = datetime.now().strftime("%Y年%m月%d日 %H:%M JST")
     html = build_html(df, generated_at)
 
+    # バリュー戦略セクションを挿入
+    value_path = Path(value_csv) if value_csv else None
+    if value_path and value_path.exists():
+        df_value = pd.read_csv(value_csv, index_col=0)
+        df_value = df_value.sort_values("rebound_probability", ascending=False)
+        value_section = build_value_section(df_value)
+        # メインテーブルの後・免責の前に挿入
+        html = html.replace("  <!-- 免責事項 -->", value_section + "\n\n  <!-- 免責事項 -->")
+
     output_path = Path(output_html)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(html, encoding="utf-8")
@@ -580,5 +733,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="results/screening_result_latest.csv")
     parser.add_argument("--output", default="docs/index.html")
+    parser.add_argument("--value-input", default="results/value_screening_latest.csv")
     args = parser.parse_args()
-    generate_report(args.input, args.output)
+    generate_report(args.input, args.output, args.value_input)
