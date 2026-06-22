@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+cache/
+models/
+results/screening_result_2*.csv
+.DS_Store
+*.egg-info/

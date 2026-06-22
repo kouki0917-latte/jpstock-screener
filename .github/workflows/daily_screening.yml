@@ -1,0 +1,77 @@
+name: Daily Stock Screening
+
+on:
+  # 毎日 06:00 JST（= 21:00 UTC 前日）に実行
+  schedule:
+    - cron: "0 21 * * *"
+
+  # 手動実行ボタンをGitHub UIから押せるようにする
+  workflow_dispatch:
+    inputs:
+      horizon:
+        description: "ラベリング期間（日）"
+        required: false
+        default: "20"
+      threshold:
+        description: "ブレイクアウト閾値（例: 0.15 = 15%）"
+        required: false
+        default: "0.15"
+
+permissions:
+  contents: write  # GitHub Pagesへのコミットに必要
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      # ── 1. リポジトリをチェックアウト ──
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Python環境のセットアップ ──
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      # ── 3. 依存パッケージのインストール ──
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ── 4. スクリーニング実行（学習 + 推論） ──
+      # 手動実行の場合はinput値、自動実行はデフォルト値を使用
+      - name: Run screening pipeline
+        env:
+          # yfinanceの接続安定性向上のためタイムゾーンをJSTに設定
+          TZ: "Asia/Tokyo"
+        run: |
+          HORIZON="${{ github.event.inputs.horizon || '20' }}"
+          THRESHOLD="${{ github.event.inputs.threshold || '0.15' }}"
+          echo "Running with horizon=${HORIZON}, threshold=${THRESHOLD}"
+          python main.py \
+            --mode all \
+            --horizon "${HORIZON}" \
+            --threshold "${THRESHOLD}" \
+            --no-plot \
+            --log-level INFO
+
+      # ── 5. HTMLレポートの生成 ──
+      - name: Generate HTML report
+        run: python report_generator.py \
+          --input results/screening_result_latest.csv \
+          --output docs/index.html
+
+      # ── 6. 結果をリポジトリにコミット & プッシュ ──
+      # docs/index.html と results/screening_result_latest.csv を保存
+      - name: Commit and push results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html results/
+          # 変更がある場合のみコミット
+          git diff --cached --quiet || git commit -m \
+            "chore: update screening results [$(date +'%Y-%m-%d %H:%M JST')]"
+          git push
