@@ -60,9 +60,7 @@ jobs:
 
       # ── 5. HTMLレポートの生成 ──
       - name: Generate HTML report
-        run: python report_generator.py \
-          --input results/screening_result_latest.csv \
-          --output docs/index.html
+        run: python report_generator.py --input results/screening_result_latest.csv --output docs/index.html
 
       # ── 6. 結果をリポジトリにコミット & プッシュ ──
       # docs/index.html と results/screening_result_latest.csv を保存
